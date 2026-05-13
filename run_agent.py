@@ -2043,6 +2043,16 @@ class AIAgent:
             _api_retries = 3
         self._api_max_retries = _api_retries
 
+        # API retry timing configuration
+        try:
+            self._api_retry_base_delay = float(_agent_section.get("api_retry_base_delay", 5.0))
+            self._api_retry_max_delay = float(_agent_section.get("api_retry_max_delay", 120.0))
+            self._api_retry_jitter_ratio = float(_agent_section.get("api_retry_jitter_ratio", 0.5))
+        except (TypeError, ValueError):
+            self._api_retry_base_delay = 5.0
+            self._api_retry_max_delay = 120.0
+            self._api_retry_jitter_ratio = 0.5
+
         # Initialize context compressor for automatic context management
         # Compresses conversation when approaching model's context limit
         # Configuration via config.yaml (compression section)
@@ -14256,7 +14266,12 @@ class AIAgent:
                                     _retry_after = min(int(_ra_raw), 120)  # Cap at 2 minutes
                                 except (TypeError, ValueError):
                                     pass
-                    wait_time = _retry_after if _retry_after else jittered_backoff(retry_count, base_delay=2.0, max_delay=60.0)
+                    wait_time = _retry_after if _retry_after else jittered_backoff(
+                        retry_count,
+                        base_delay=self._api_retry_base_delay,
+                        max_delay=self._api_retry_max_delay,
+                        jitter_ratio=self._api_retry_jitter_ratio
+                    )
                     if is_rate_limited:
                         self._emit_status(f"⏱️ Rate limited. Waiting {wait_time:.1f}s (attempt {retry_count + 1}/{max_retries})...")
                     else:
@@ -15700,8 +15715,6 @@ def main(
     print("\n👋 Agent execution completed!")
 
 
-if __name__ == "__main__":
-    import fire
 if __name__ == "__main__":
     import fire
     fire.Fire(main)
